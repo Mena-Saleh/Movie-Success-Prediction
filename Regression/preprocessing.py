@@ -1,11 +1,8 @@
 import pandas as pd
 import dateutil.parser
 import numpy as np
-from sklearn.preprocessing import OrdinalEncoder
-from sklearn.preprocessing import LabelEncoder
-from sklearn.preprocessing import MinMaxScaler
-from sklearn.preprocessing import StandardScaler
-from sklearn.impute import KNNImputer
+from sklearn.preprocessing import OrdinalEncoder, LabelEncoder, MinMaxScaler, StandardScaler
+from sklearn.impute import KNNImputer, SimpleImputer
 import ast
 import pickle
 import string
@@ -24,10 +21,10 @@ def preprocess(df: pd.DataFrame, is_train: bool = True):
     df = preprocess_categorical(df)
     df = preprocess_dates(df)
     df = preprocess_text(df)
-    df = encode_columns(df, is_train= is_train)
+    df = encode_columns(df)
     df = scale_columns(df, is_train= is_train)
-    df = KNN_impute_columns(df, is_train=is_train)
     df = drop_columns(df)
+    df = impute_columns(df, is_train=is_train)
     return df
 
 
@@ -61,8 +58,8 @@ def preprocess_dates(df: pd.DataFrame):
     return df
 
 
-def preprocess_text(df:pd.DataFrame, is_train: bool = True):
-    columns = ['original_title', 'overview', 'tagline']    
+def preprocess_text(df: pd.DataFrame, is_train: bool = True):
+    columns = ['original_title', 'overview', 'tagline']
     for column in columns:
         # Apply NLP preprocessing pipeline
         df[column] = df[column].apply(lambda x: NLP_pipeline(x))
@@ -71,8 +68,11 @@ def preprocess_text(df:pd.DataFrame, is_train: bool = True):
         tfidf_matrix = TF_IDF_vectorize(df[column], column, is_train)
         dense_matrix = tfidf_matrix.toarray()
         
-        # Create new DataFrame from the dense matrix with appropriate column names
+        # Create a new DataFrame from the dense matrix with appropriate column names
         tfidf_df = pd.DataFrame(dense_matrix, columns=[f"{column}_tfidf_{i}" for i in range(dense_matrix.shape[1])])
+        
+        # Reset the index of the original DataFrame to avoid index mismatches
+        df.reset_index(drop=True, inplace=True)
         
         # Concatenate the new DataFrame to the original DataFrame
         df = pd.concat([df, tfidf_df], axis=1)
@@ -81,11 +81,10 @@ def preprocess_text(df:pd.DataFrame, is_train: bool = True):
         df.drop(column, axis=1, inplace=True)
     return df
 
-
 # Utils:
 
 # Scale numerical data for faster and more efficient convergence
-def scale_columns(df: pd.DataFrame, is_train: bool = True, scaler = StandardScaler()):
+def scale_columns(df: pd.DataFrame, is_train: bool = False, scaler = StandardScaler()):
     columns = ['spoken_languages_count', 'keywords_count', 'genres_count', 'production_companies_count', 'production_countries_count', 'viewercount', 'revenue', 'runtime', 'vote_count', 'budget', 'release_date', 'original_language']
     df[columns] = df[columns].astype(float)
     if is_train:
@@ -99,9 +98,10 @@ def scale_columns(df: pd.DataFrame, is_train: bool = True, scaler = StandardScal
     return df
 
 # Encodes categorical columns to get a numerical format.
-def encode_columns(df: pd.DataFrame, is_train: bool = True, encoder = LabelEncoder()):
-    columns = 'original_language'
+def encode_columns(df: pd.DataFrame, is_train: bool = False, encoder = LabelEncoder()):
+    columns = 'original_language'    
     df[columns] = df[columns].astype(str)
+    
     if is_train:
         df[columns] = encoder.fit_transform(df[columns])
         # Save using pickle
@@ -112,26 +112,24 @@ def encode_columns(df: pd.DataFrame, is_train: bool = True, encoder = LabelEncod
         df[columns] = encoder.transform(df[columns])
     return df
 
-# Imputer to fill null values
-def KNN_impute_columns(df: pd.DataFrame, is_train: bool = True, imputer = KNNImputer(n_neighbors=5)):
-    # Select only numeric columns for imputation
-    numeric_df = df.select_dtypes(include=[np.number])
-
-    # Perform imputation only on numeric columns
-    column_names = numeric_df.columns    
+# Impute function to fill missing values
+def impute_columns(df: pd.DataFrame, is_train: bool = True, imputer = SimpleImputer(strategy='most_frequent')):
+    # Select only numeric columns for imputation    
     if is_train:
-        numeric_df = imputer.fit_transform(numeric_df)
-        # Save using pickle
-        with open('Pickled/imputer.pkl', 'wb') as f:
+        df_imputed= imputer.fit_transform(df)
+        # Save the imputer model using pickle
+        with open('Pickled/mean_imputer.pkl', 'wb') as f:
             pickle.dump(imputer, f)
     else:
-        imputer = pickle.load(open('Pickled/imputer.pkl', 'rb'))
-        numeric_df = imputer.transform(numeric_df)
+        # Load the imputer model using pickle
+        with open('Pickled/mean_imputer.pkl', 'rb') as f:
+            imputer = pickle.load(f)
+        df_imputed = imputer.transform(df)
+    
+    # Convert the array back to a DataFrame
+    df_imputed = pd.DataFrame(df_imputed, columns=df.columns)
 
-    # Convert the array back to a dataframe
-    numeric_df = pd.DataFrame(numeric_df, columns=column_names)
-
-    return df
+    return df_imputed
 
 # Takes a string that has a list of object and converts it to just that, an actual list of objects.
 def convert_to_list_of_objects(string_representation):
@@ -223,7 +221,7 @@ def TF_IDF_vectorize(x, column_name, is_train = True):
         with open(f'Pickled/vectorizer{column_name}.pkl', 'wb') as f:
             pickle.dump(vectorizer, f)
     else:
-        vectorizer = pickle.load(open(f'Pickled/vectorizer{column_name}.pkl', 'rb'))
+        vectorizer = pickle.load(open(f'Pickled/vectorizer_{column_name}.pkl', 'rb'))
         x = vectorizer.transform(x)
     return x
 
@@ -251,5 +249,5 @@ def drop_columns(df: pd.DataFrame):
 if __name__ == '__main__':
     df = pd.read_csv('movies-regression-dataset.csv')
     df = preprocess(df)
-    df.to_csv('preprocessed.csv', index=False, encoding='utf-8-sig')
+    df.to_csv('preprocessed_all.csv', index=False, encoding='utf-8-sig')
     print('Data preprocessed')

@@ -19,7 +19,7 @@ label_encoder = LabelEncoder()
 y = label_encoder.fit_transform(y)
 
 # Save the label encoder using pickle
-with open('label_encoder_y.pkl', 'wb') as file:
+with open('Pickled/encoder_y.pkl', 'wb') as file:
     pickle.dump(label_encoder, file)
 
 # Split the data into a training set and a test set

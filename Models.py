@@ -193,7 +193,7 @@ def svm(X_train, y_train, X_test, y_test, C = 1, kernel='rbf'):
     y_pred = model.predict(X_test)
 
     metrics = calculate_metrics_classification(y_test, y_pred)
-    with open("Pickled/svm_gaussian.pkl", "wb") as f:
+    with open("Pickled/svm.pkl", "wb") as f:
         pickle.dump(model, f)
     return metrics
 
@@ -213,7 +213,7 @@ def random_forest(X_train, y_train, X_test, y_test, n_estimators=100, max_depth=
     y_pred = model.predict(X_test)
 
     metrics = calculate_metrics_classification(y_test, y_pred)
-    with open("Pickled/random_forest.pkl", "wb") as f:
+    with open("Pickled/random_forest_classification.pkl", "wb") as f:
         pickle.dump(model, f)
     return metrics
 

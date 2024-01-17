@@ -118,11 +118,11 @@ def impute_columns(df: pd.DataFrame, is_train: bool = True, imputer = SimpleImpu
     if is_train:
         df_imputed= imputer.fit_transform(df)
         # Save the imputer model using pickle
-        with open('Pickled/mean_imputer.pkl', 'wb') as f:
+        with open('Pickled/imputer.pkl', 'wb') as f:
             pickle.dump(imputer, f)
     else:
         # Load the imputer model using pickle
-        with open('Pickled/mean_imputer.pkl', 'rb') as f:
+        with open('Pickled/imputer.pkl', 'rb') as f:
             imputer = pickle.load(f)
         df_imputed = imputer.transform(df)
     
